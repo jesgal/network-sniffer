@@ -183,4 +183,5 @@ Copyright (c) 2026
 ---
 
 > **Nota sobre Dependencias:** Este software invoca herramientas externas (`tshark`, `jq`, `openssl`, `ss`) que se rigen por sus propias licencias de software libre (GPL, MIT, Apache). El uso de esta suite respeta dichas licencias al no modificar su código fuente original.
+
 > **Exención de Responsabilidad por Daños:** Este software se proporciona “tal cual”, sin garantías de ningún tipo, expresas o implícitas. El autor o los colaboradores no serán responsables en ningún caso de daños directos, indirectos, incidentales, especiales, ejemplares o consecuentes derivados del uso, mal uso o imposibilidad de uso de este software, incluyendo —sin limitación— pérdida de datos, interrupciones del servicio o fallos en sistemas derivados de su ejecución.
