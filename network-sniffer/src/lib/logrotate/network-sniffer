@@ -1,0 +1,12 @@
+/var/log/network-sniffer/*.log {
+    daily
+    rotate 1095
+    dateext
+    dateformat -%d-%m-%Y
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    create 640 network-sniffer network-sniffer
+}

@@ -1,0 +1,83 @@
+:root {
+            --sidebar-bg: #121417;
+            --sidebar-color: #94a3b8;
+            --main-bg: #0f172a;
+            --terminal-bg: #000000;
+            --accent: #38bdf8;
+        }
+
+        body { 
+            background-color: var(--main-bg); 
+            color: #f8fafc; 
+            font-family: 'Segoe UI', system-ui, sans-serif; 
+            overflow: hidden; /* Evita scroll doble en el navegador */
+        }
+        
+        /* Sidebar */
+        .sidebar { 
+            background: var(--sidebar-bg); 
+            height: 100vh; 
+            border-right: 1px solid #1e293b; 
+            padding: 0;
+            overflow-y: auto;
+        }
+        .sidebar-header { padding: 2rem 1.5rem; border-bottom: 1px solid #1e293b; }
+        .list-group-item { 
+            background: transparent; color: var(--sidebar-color); border: none; 
+            padding: 0.8rem 1.5rem; font-size: 0.9rem; transition: 0.2s;
+        }
+        .list-group-item:hover { background: #1e293b; color: white; }
+        .list-group-item.active { background: #1d4ed8 !important; color: white !important; font-weight: 600; }
+
+        /* Main Content */
+        .main-content { 
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            padding: 1.5rem 2rem; 
+        }
+        
+        /* Terminal con Header Sticky */
+        .terminal-window {
+            flex-grow: 1; 
+            background: var(--terminal-bg); 
+            border-radius: 8px;
+            border: 1px solid #334155; 
+            display: flex; 
+            flex-direction: column;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+            overflow-y: auto; /* El scroll ahora está aquí */
+            position: relative;
+        }
+
+        .terminal-header {
+            background: #1e293b; 
+            padding: 10px 15px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between;
+            position: sticky; /* Se mantiene arriba al scrollear */
+            top: 0;
+            z-index: 10;
+            border-bottom: 1px solid #334155;
+        }
+
+        .log-view {
+            padding: 1rem; 
+            font-family: 'Cascadia Code', 'Consolas', monospace;
+            font-size: 0.85rem; 
+            color: #cbd5e1; 
+            line-height: 1.5;
+            /* Ya no necesita overflow-y: auto porque lo tiene el padre */
+        }
+
+        /* Utilidades */
+        .log-line { border-bottom: 1px solid #1e293b; padding: 2px 0; display: flex; }
+        .log-line:hover { background: #111827; }
+        .line-num { color: #475569; min-width: 35px; user-select: none; }
+        .keyword { color: var(--accent); font-weight: bold; }
+        
+        /* Custom Scrollbar */
+        .terminal-window::-webkit-scrollbar { width: 8px; }
+        .terminal-window::-webkit-scrollbar-track { background: #0f172a; }
+        .terminal-window::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
