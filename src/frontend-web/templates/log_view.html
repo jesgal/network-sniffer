@@ -1,0 +1,26 @@
+<div class="terminal-window" id="terminal-container">
+    <div class="terminal-header">
+        <small class="text-muted font-monospace">output_stream: {{ selected_log or 'global' }}</small>
+        <div class="dots">
+            <span class="dot" style="background: #ff5f56;"></span>
+            <span class="dot" style="background: #ffbd2e;"></span>
+            <span class="dot" style="background: #27c93f;"></span>
+        </div>
+    </div>
+
+    <div class="log-view">
+        {% if content %}
+            {% for line in content %}
+            <div class="log-line">
+                <span class="line-num">{{ loop.index }}</span>
+                <span class="text-break">{{ line | e }}</span>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="text-center mt-5 text-muted">
+                <i class="bi bi-terminal h1 d-block mb-3"></i>
+                <p>No hay datos en el buffer o la búsqueda no devolvió resultados.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>

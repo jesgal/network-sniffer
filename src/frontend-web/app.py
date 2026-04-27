@@ -1,101 +1,158 @@
 import os
-import subprocess
 import glob
 import re
+import subprocess
 from markupsafe import escape
 from flask import Flask, render_template, request, abort
+
+# Importar funciones comunes
+from logs import (
+    LOG_DIR,
+    MAX_LINES,
+    get_main_logs,
+    get_related_logs,
+    read_file_reverse,
+    read_gz_reverse,
+    parse_timestamp
+)
+
+# Importar blueprint de análisis
+from analysis.stats import analysis_bp
 
 base_dir = os.path.abspath(os.path.dirname(__file__))
 template_dir = os.path.join(base_dir, 'templates')
 
 app = Flask(__name__, template_folder=template_dir)
 
-LOG_DIR = "/var/log/network-sniffer"
+# Registrar blueprint
+app.register_blueprint(analysis_bp)
 
-def get_log_files():
-    """Obtiene la lista de archivos .log de forma segura."""
-    try:
-        if not os.path.exists(LOG_DIR): 
-            return []
-        # Filtramos solo archivos con extensión .log
-        files = [f for f in os.listdir(LOG_DIR) if f.endswith('.log')]
-        files.sort()
-        return files
-    except Exception as e:
-        # Registro básico de errores en lugar de except vacío
-        print(f"Error accediendo a LOG_DIR: {e}")
-        return []
 
+# ---------------------------------------------------------
+# RUTA PRINCIPAL
+# ---------------------------------------------------------
 @app.route('/')
 def index():
-    logs = get_log_files()
-    return render_template('index.html', logs=logs, content=[], selected_log="", search_term="")
+    logs = get_main_logs()
 
+    service_logs = [l for l in logs if l in ("error.log", "service.log")]
+    protocol_logs = [l for l in logs if l not in ("error.log", "service.log")]
+    protocol_logs.sort()
+
+    return render_template(
+        'index.html',
+        service_logs=service_logs,
+        protocol_logs=protocol_logs
+    )
+
+
+# ---------------------------------------------------------
+# NUEVA RUTA: PROCESAR BÚSQUEDA GLOBAL
+# ---------------------------------------------------------
+@app.route('/search')
+def global_search_query():
+    term = request.args.get("q", "").strip()
+
+    # Respuesta vacía si no hay término
+    if not term:
+        return {"results": [], "term": ""}
+
+    # Validación de caracteres
+    if not re.match(r'^[a-zA-Z0-9\.\:\-\ ]*$', term):
+        return abort(400, "Término de búsqueda contiene caracteres no permitidos")
+
+    search_files = glob.glob(os.path.join(LOG_DIR, "*"))
+    search_files.sort(key=os.path.getmtime)
+
+    results   = []
+    all_lines = []
+    count     = 0
+    
+    try:
+        for filename in search_files:
+            # Comando según tipo de archivo
+            if filename.endswith(".gz"):
+                cmd = f"zgrep -h -i -- '{term}' '{filename}'"
+            else:
+                cmd = f"grep -h -i -- '{term}' '{filename}'"
+
+            # Ejecutar búsqueda
+            result = subprocess.run(
+                ["sh", "-c", cmd],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False
+            )
+
+            for line in result.stdout.splitlines():
+                all_lines.append(line)
+                count += 1
+                if count >= MAX_LINES: break
+
+
+        all_lines.sort(key=parse_timestamp, reverse=True)
+
+        return render_template(
+            "log_view.html",
+            content=all_lines,
+            selected_log="",
+            search_term=""
+        )
+
+    except Exception as e:
+        return {"results": [], "term": term, "error": str(e)}
+
+
+
+# ---------------------------------------------------------
+# RUTA PARA VER LOGS INDIVIDUALES
+# ---------------------------------------------------------
 @app.route('/view_log')
 def view_log():
     selected_log = request.args.get('log', '')
-    search_term = request.args.get('search', '').strip()
 
-    if not re.match(r'^[a-zA-Z0-9\.\:\-\ ]*$', search_term):
-        return abort(400, "Término de búsqueda contiene caracteres no permitidos")
-    
-    logs = get_log_files()
-    raw_content = ""
+    logs = get_main_logs()
+
+    if not selected_log or selected_log not in logs:
+        return render_template("log_view.html", content=[], selected_log="", search_term="")
 
     try:
-        # VALIDACIÓN DE SEGURIDAD: Evitar Path Traversal
-        if selected_log and selected_log != "Búsqueda Global":
-            valid_logs = get_log_files()
-            if selected_log not in valid_logs:
-                return abort(403, "Acceso no autorizado")
-            
-            log_path = os.path.join(LOG_DIR, selected_log)
-            if not os.path.exists(log_path):
-                return abort(404, "Archivo no encontrado")
+        related_files = get_related_logs(selected_log)
+        display_name = selected_log
 
-        # LÓGICA DE BÚSQUEDA
-        if search_term:
-            # Definir archivos donde buscar
-            if not selected_log or selected_log == "Búsqueda Global":
-                search_files = glob.glob(os.path.join(LOG_DIR, "*.log"))
-                display_name = "Búsqueda Global"
+        all_lines = []
+        count = 0
+
+        for filename in related_files:
+            path = os.path.join(LOG_DIR, filename)
+            if filename.endswith(".gz"):
+                lines = read_gz_reverse(path)
             else:
-                search_files = [os.path.join(LOG_DIR, selected_log)]
-                display_name = selected_log
+                lines = read_file_reverse(path)
 
-            if search_files:
-                cmd = ["grep", "-i", "--", search_term] + search_files
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
-                raw_content = result.stdout
-        
-        elif selected_log and selected_log != "Búsqueda Global":
-            # Si no hay búsqueda, mostrar las últimas 500 líneas del archivo seleccionado
-            log_path = os.path.join(LOG_DIR, selected_log)
-            result = subprocess.run(["tail", "-n", "500", log_path], capture_output=True, text=True, check=True)
-            raw_content = result.stdout
-            display_name = selected_log
-        else:
-            return index()
+            for line in lines:
+                all_lines.append(line)
+                count += 1
+                if count >= MAX_LINES: break
 
-        # Procesar salida para la plantilla
-        if raw_content.strip():
-            # Dividimos por líneas, limitamos a las primeras 50000 por rendimiento
-            # y escapamos cada línea para seguridad XSS
-            content_list = [escape(line) for line in raw_content.strip().split('\n')[:50000]]
-        else:
-            content_list = ["No se encontraron resultados."]
+            if count >= MAX_LINES: break
+
+        all_lines.sort(key=parse_timestamp, reverse=True)
 
         return render_template(
-            'index.html', 
-            logs=logs, 
-            content=content_list, 
+            "log_view.html",
+            content=all_lines,
             selected_log=display_name,
-            search_term=search_term
+            search_term=""
         )
 
     except Exception as e:
         return f"Error interno: {str(e)}", 500
 
+
+# ---------------------------------------------------------
+# EJECUCIÓN
+# ---------------------------------------------------------
 if __name__ == '__main__':
-    # Importante: debug=False en producción
     app.run(host='127.0.0.1', port=5000, debug=False)
